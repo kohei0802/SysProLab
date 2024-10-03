@@ -19,7 +19,7 @@ void signalHandler(int signum)
 
 void clearStdin() {
     int c;
-    while ((c=getchar()) != '\n' && c!=EOF) {}
+    while ((c=getchar()) != '\n') {}
 }
 
 int main(int argc, char const *argv[])
@@ -49,10 +49,19 @@ int main(int argc, char const *argv[])
         {
             if (!fgets(inputBuffer, sizeof(inputBuffer), stdin))
                 break;
-           
+
+            if (stdin->_IO_read_ptr == stdin->_IO_read_end)
+            {
+                //Do nothing. No need to clear stdin buffer
+            }
+            else 
+            {
+                clearStdin();
+            }
+            
+
             write(pipe1[1], inputBuffer, msg_t);
         }
-
         wait(NULL);
     }
     else 
