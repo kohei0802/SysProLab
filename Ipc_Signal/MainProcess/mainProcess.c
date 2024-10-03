@@ -76,7 +76,7 @@ void signalHandler(int signum)
 
 void clearStdin() {
     /* 
-        Don't call this if the stdin input buffer is already empty
+        Don't call this  if the stdin input buffer is already empty
         because it will cause I/O block when calling getchar()
     */
     int c;
