@@ -6,7 +6,9 @@
 	],
 	"settings": {
 		"files.associations": {
-			"signal.h": "c"
+			"signal.h": "c",
+			"*.tcc": "c",
+			"string": "c"
 		}
 	}
 }

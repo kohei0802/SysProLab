@@ -11,16 +11,10 @@
 
 pid_t childPid;
 
-void signalHandler(int signum)
-{
-    kill(childPid, SIGINT);
-    exit(0);
-}
+void signalHandler(int signum);
 
-void clearStdin() {
-    int c;
-    while ((c=getchar()) != '\n') {}
-}
+void clearStdin();
+
 
 int main(int argc, char const *argv[])
 {
@@ -74,3 +68,17 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
+void signalHandler(int signum)
+{
+    kill(childPid, SIGINT);
+    exit(0);
+}
+
+void clearStdin() {
+    /* 
+        Don't call this if the stdin input buffer is already empty
+        because it will cause I/O block when calling getchar()
+    */
+    int c;
+    while ((c=getchar()) != '\n') {}
+}
