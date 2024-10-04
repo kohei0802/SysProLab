@@ -54,8 +54,8 @@ int main(int argc, char const *argv[])
             printf(">>> ");
             if (!fgets(inputBuffer, sizeof(inputBuffer), stdin))
                 break;
-            if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
-                clearStdin();
+            // if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
+            //     clearStdin();
 
             write(pipe1[1], inputBuffer, msg_t);
 
@@ -63,7 +63,9 @@ int main(int argc, char const *argv[])
             {
                 sigwaitinfo(&set, &sigInformation);
             } while (sigInformation.si_pid != childPid);
-            
+
+            if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
+                clearStdin();
             
         }
         wait(NULL);
