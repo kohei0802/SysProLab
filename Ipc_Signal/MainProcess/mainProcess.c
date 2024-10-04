@@ -7,11 +7,12 @@
 #include <signal.h>
 
 
-#define msg_t 100
+#define msg_t 257
 
 pid_t childPid;
 
-void signalHandler(int signum);
+void sigintHandler(int signum);
+void sigusr1Handler(int signum);
 
 void clearStdin();
 
@@ -35,26 +36,35 @@ int main(int argc, char const *argv[])
     }
     else if (pid1 > 0)
     {
-        signal(SIGINT, signalHandler);
+        sigset_t set;
+        siginfo_t sigInformation;
+
+        sigemptyset(&set);
+        sigaddset(&set, SIGUSR1);
 
         childPid = pid1;
-        printf("Hello World from sender\n");
+
+        //Handle signal to kill child
+        signal(SIGINT, sigintHandler);
+        signal(SIGUSR1, sigusr1Handler);
+
+        printf("%d\n", getpid());
         while(1) 
         {
+            printf(">>> ");
             if (!fgets(inputBuffer, sizeof(inputBuffer), stdin))
                 break;
-
-            if (stdin->_IO_read_ptr == stdin->_IO_read_end)
-            {
-                //Do nothing. No need to clear stdin buffer
-            }
-            else 
-            {
+            if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
                 clearStdin();
-            }
-            
 
             write(pipe1[1], inputBuffer, msg_t);
+
+            do
+            {
+                sigwaitinfo(&set, &sigInformation);
+            } while (sigInformation.si_pid != childPid);
+            
+            
         }
         wait(NULL);
     }
@@ -68,11 +78,13 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-void signalHandler(int signum)
+void sigintHandler(int signum)
 {
     kill(childPid, SIGINT);
     exit(0);
 }
+
+void sigusr1Handler(int signum) {;}
 
 void clearStdin() {
     /* 

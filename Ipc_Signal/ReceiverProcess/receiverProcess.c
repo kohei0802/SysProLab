@@ -1,21 +1,23 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/types.h> 
+#include <signal.h>
 
-#define in_buffer_t 100
+#define in_buffer_t 257
 
-
+pid_t ppid;
 
 int main(int argc, char const *argv[])
 {
     char inputBuffer[in_buffer_t];
-    /* code */
-    printf("Hello World from Receiver\n");
+
+    ppid = getppid();
     while(1)
     {
         read(STDIN_FILENO, inputBuffer, in_buffer_t);
         printf("Received: %s", inputBuffer);
         fflush(stdout);
-        sleep(1);
+        kill(ppid, SIGUSR1);
     }
     return 0;
 }
