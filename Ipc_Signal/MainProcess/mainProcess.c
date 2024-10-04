@@ -20,17 +20,17 @@ void clearStdin();
 int main(int argc, char const *argv[])
 {
     pid_t pid1;
-    int pipe1[2];
+    int requestPipe[2];
     char inputBuffer[msg_t];
 
-    pipe(pipe1);
+    pipe(requestPipe);
     pid1 = fork();
 
     if (pid1 == 0)
     {
-        dup2(pipe1[0], STDIN_FILENO);
-        close(pipe1[0]);
-        close(pipe1[1]);
+        dup2(requestPipe[0], STDIN_FILENO);
+        close(requestPipe[0]);
+        close(requestPipe[1]);
 
         execl("./receiver", "receiver", NULL);
     }
@@ -57,7 +57,7 @@ int main(int argc, char const *argv[])
             // if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
             //     clearStdin();
 
-            write(pipe1[1], inputBuffer, msg_t);
+            write(requestPipe[1], inputBuffer, msg_t);
 
             do
             {
@@ -82,7 +82,13 @@ int main(int argc, char const *argv[])
 
 void sigintHandler(int signum)
 {
+    int exitStatus;
+
+    printf("\n");
+    printf("Terminating\n");
     kill(childPid, SIGINT);
+    waitpid(childPid, &exitStatus, 0);
+    printf("Child exited with status %d\n", exitStatus);
     exit(0);
 }
 
