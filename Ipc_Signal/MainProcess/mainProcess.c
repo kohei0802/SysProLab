@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
+#include <termios.h>
 
 #include <stdbool.h>
 
@@ -108,6 +109,10 @@ int main(int argc, char const *argv[])
         while(true) 
         {
             printf(">>> ");
+
+            if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
+                clearStdin();
+            tcflush(STDIN_FILENO, TCIOFLUSH);
             if (!fgets(inputBuffer, sizeof(inputBuffer), stdin))
                 break;
 
@@ -128,11 +133,6 @@ int main(int argc, char const *argv[])
             pthread_join(monitorThread, NULL);
             char endMessage[] = "Inference Completed\n";
             fwrite(endMessage, sizeof(char), strlen(endMessage), stderr);
-
-            //Last statement in this loop
-            if (!(stdin->_IO_read_ptr == stdin->_IO_read_end))
-                clearStdin();
-            
         }
         wait(NULL);
     }
