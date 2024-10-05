@@ -37,7 +37,7 @@ void *threadMonitor(void *arg)
     /*(1)pid (2)comm (3)state (14)utime (15)stime (19)nice (23)vsize (39)processor (41)policy
     */
     const char format[]="%s %s %s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %s %s %*s %*s %*s %s %*s %*s %*s %s \
-                            %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %s %*s %s";
+    %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %s %*s %s";
     char pid[INPUTSIZE], comm[INPUTSIZE], state[INPUTSIZE], utime[INPUTSIZE], stime[INPUTSIZE]
                 , nice[INPUTSIZE], vsize[INPUTSIZE], processor[INPUTSIZE], policy[INPUTSIZE];
 
@@ -59,8 +59,8 @@ void *threadMonitor(void *arg)
         float cpuusage = (currentUsage-initialTimeUsage) / 30 * 100;
         initialTimeUsage = currentUsage;
     
-        snprintf(output, sizeof(output), "%s %s %s %s %s %s %s %s %s %.2f%%", 
-                    pid, comm, state, policy, nice, vsize, processor, utime, stime, (cpuusage>100.0)?100.0:cpuusage);
+        snprintf(output, sizeof(output), "[pid] %s [tcomm] %s [state] %s [policy] %s [nice] %s [vsize] %s [task_cpu] %s [utime] %s [stime] %s [cpu%%] %.2f%%", 
+            pid, comm, state, policy, nice, vsize, processor, utime, stime, (cpuusage>100.0)?100.0:cpuusage);
         fwrite(output, sizeof(char), strlen(output), stderr);
         fwrite("\n", sizeof(char), 1, stderr);
         fflush(stderr);
