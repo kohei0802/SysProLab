@@ -10,6 +10,10 @@
 
 #include <stdbool.h>
 
+#include <sched.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
 
 #define MSG_SIZE 257
 
@@ -22,6 +26,25 @@ void sigintHandler(int signum);
 void sigusr1Handler(int signum);
 
 void clearStdin();
+
+ struct sched_attr {
+    unsigned int size;              /* Size of this structure */
+    unsigned int sched_policy;      /* Policy (SCHED_*) */
+    unsigned long long sched_flags;       /* Flags */
+    signed int sched_nice;        /* Nice value (SCHED_OTHER,
+                                SCHED_BATCH) */
+    unsigned int sched_priority;    /* Static priority (SCHED_FIFO,
+                                SCHED_RR) */
+    /* For SCHED_DEADLINE */
+    unsigned long long sched_runtime;
+    unsigned long long sched_deadline;
+    unsigned long long sched_period;
+
+    /* Utilization hints */
+    unsigned int sched_util_min;
+    unsigned int sched_util_max;
+};
+
 
 void *threadMonitor(void *arg)
 {
@@ -98,6 +121,25 @@ int main(int argc, char const *argv[])
         pthread_t monitorThread;
 
         childPid = pid1;
+
+        struct sched_attr attr = {
+            .size = sizeof(struct sched_attr), 
+            .sched_policy = 5, 
+            .sched_nice = 0,
+            .sched_priority = 0
+        };
+        int status = syscall(SYS_sched_setattr, childPid, &attr, 0);
+        if (status == -1)
+        {
+            int exitStatus;
+            char m[] = "Failed\n";
+            fwrite(m, sizeof(char), strlen(m), stderr);
+            fflush(stderr);
+
+            kill(childPid, SIGINT);
+            waitpid(childPid, &exitStatus, 0);
+            exit(1);
+        }
 
         signal(SIGINT, sigintHandler);
         signal(SIGUSR1, sigusr1Handler);
