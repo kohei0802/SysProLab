@@ -1,16 +1,20 @@
 CC = gcc
-# CFLAGS = -Wall -Wextra -I./src
 CFLAGS = -Wall -I./src
+
+OBJS = src/common.o
 
 all: server client
 
-server: src/server.c src/server.h
-	$(CC) $(CFLAGS) -o server src/server.c
+server: src/server.o $(OBJS)
+	$(CC) $(CFLAGS) -o server src/server.o $(OBJS)
 
-client: src/client.c src/client.h
-	$(CC) $(CFLAGS) -o client src/client.c
+client: src/client.o $(OBJS)
+	$(CC) $(CFLAGS) -o client src/client.o $(OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f server client
+	rm -f server client src/*.o
 
 .PHONY: all clean
