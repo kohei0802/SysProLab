@@ -26,17 +26,22 @@ static int usercount = 0; //to limit total clients
 
 typedef struct userStruct {
     int sessionId;
-} UserStruct;
+} UserStruct; //essentially extension to fd
 
-static UserStruct users[MAX_CLIENT];
+static UserStruct users[MAX_CLIENT + 50]; //use fd as the index, 50 is arbitrary
 
 /**
- * Listening socket config
+ * 
+ * All sockets
  */
-static int sockfd; //listening socket
+fd_set master;    // master file descriptor list
+fd_set read_fds;  // temp file descriptor list for select()
+int fdmax;        // maximum file descriptor number
+int listener;     // listening socket descriptor
 
-static struct sockaddr_in servaddr;  //listening address
-
+/**
+ * Address formatting
+ */
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -46,6 +51,27 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+void broadcast(int i, ssize_t nbytes, char *terminatedstr) {
+    
+        // except the listener and ourselves
+        for(int j = 0; j <= fdmax; j++) {
+                            // send to everyone!
+            if (FD_ISSET(j, &master)) {
+                if (j != listener && j != i) {
+                    if (send(j, terminatedstr, nbytes, 0) == -1) {
+                        perror("send");
+                    }
+                }
+            }
+            
+        }
+        
+    
+}
+
+/**
+ * Main
+ */
 int main(int argc, char *argv[]) {
     // sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -56,22 +82,18 @@ int main(int argc, char *argv[]) {
 
     // listen(sockfd, 10);
 
-    fd_set master;    // master file descriptor list
-    fd_set read_fds;  // temp file descriptor list for select()
-    int fdmax;        // maximum file descriptor number
-
-    int listener;     // listening socket descriptor
+  
     int newfd;        // newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // client address
     socklen_t addrlen;
 
-    char buf[256];    // buffer for client data
+    char buf[MAX_DATA * 2];    // buffer for client data
     int nbytes;
 
-    char remoteIP[INET6_ADDRSTRLEN];
+    char remoteIP[INET6_ADDRSTRLEN]; //idk what this is
 
     int yes=1;        // for setsockopt() SO_REUSEADDR, below
-    int i, j, rv;
+    int i, rv;
 
     struct addrinfo hints, *ai, *p;
 
@@ -118,7 +140,7 @@ int main(int argc, char *argv[]) {
         perror("listen");
         exit(3);
     }
-
+ 
     // add the listener to the master set
     FD_SET(listener, &master);
 
@@ -194,6 +216,7 @@ int main(int argc, char *argv[]) {
                 } else {
                     // handle data from a client
                     nbytes = recv(i, buf, sizeof buf, 0);
+                    buf[nbytes]='\0';
                     if (nbytes <= 0) {
                         // got error or connection closed by client
                         if (nbytes == 0) {
@@ -207,17 +230,8 @@ int main(int argc, char *argv[]) {
                         usercount -= 1;
                     } else {
                         // we got some data from a client
-                        for(j = 0; j <= fdmax; j++) {
-                            // send to everyone!
-                            if (FD_ISSET(j, &master)) {
-                                // except the listener and ourselves
-                                if (j != listener && j != i) {
-                                    if (send(j, buf, nbytes, 0) == -1) {
-                                        perror("send");
-                                    }
-                                }
-                            }
-                        }
+                        printf("%s", buf);
+                        broadcast(i, nbytes, buf);
                     }
                 } // END handle data from client
             } // END got new incoming connection

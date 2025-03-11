@@ -10,28 +10,28 @@ struct Credential {
     char password[MAX_PASSWORDLEN];
 };
 
-struct Message {
+typedef struct Message {
     unsigned int type; //type of the message,
     unsigned int size; //length of the data.
     unsigned char source[MAX_NAME]; //ID of the client sending the message.
     unsigned char data[MAX_DATA]; 
-};
+} Message;
 
 enum MessageType {
-    LOGIN,
-    LO_ACK,
-    LO_NAK,
-    EXIT,
-    JOIN,
-    JN_ACK,
-    JN_NAK,
-    LEAVE_SESS,
-    NEW_SESS,
-    NS_ACK,
-    MESSAGE,
-    QUERY,
-    QU_ACK,
-    TEST
+    MT_LOGIN,
+    MT_LO_ACK,
+    MT_LO_NAK,
+    MT_EXIT,
+    MT_JOIN,
+    MT_JN_ACK,
+    MT_JN_NAK,
+    MT_LEAVE_SESS,
+    MT_NEW_SESS,
+    MT_NS_ACK,
+    MT_MESSAGE,
+    MT_QUERY,
+    MT_QU_ACK,
+    MT_TEST
 };
 
 char * 
