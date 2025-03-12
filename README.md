@@ -11,4 +11,4 @@
 - Same as online meeting programs like "Skype" and "Zoom", but with only "text"
 
 ## LLMOptimization
-This project focuses on optimizing a Transformer-based language model using multi-threading techniques. The project includes the implementation of a quantized Transformer model, a tokenizer, and a sampler, along with multi-threaded matrix multiplication and multi-head attention mechanisms.
+- This project focuses on optimizing a Transformer-based language model using multi-threading techniques. The project includes the implementation of a quantized Transformer model, a tokenizer, and a sampler, along with multi-threaded matrix multiplication and multi-head attention mechanisms.
