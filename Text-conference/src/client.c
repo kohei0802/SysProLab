@@ -80,9 +80,6 @@ int main(int argc, char *argv[]) {
             printf("main mode\n");
             routine_main();
         }
-
-
-        
         
     }
     
@@ -258,7 +255,6 @@ void cleanargs(int argc, char **argv) {
 }
 
 void routine_stdin() {
-    char* str;
 
     int argc;
     char **argv;

@@ -5,9 +5,9 @@
 #include <netinet/ip.h> /* superset of previous */
 #include <unistd.h>
 #include <arpa/inet.h>
- #include <sys/types.h>
- #include <netdb.h>
- #include <netinet/tcp.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <netinet/tcp.h>
 #include "common.h"
 
 /**
@@ -27,7 +27,6 @@
  * 
  * All sockets
  */
-fd_set master;    // master file descriptor list
 fd_set read_fds;  // temp file descriptor list for select()
 int fdmax;        // maximum file descriptor number
 int listener;     // listening socket descriptor
@@ -168,14 +167,7 @@ void clientsocketconfig(int newfd) {
  * Main
  */
 int main(int argc, char *argv[]) {
-    // sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    // memset(&servaddr, 0, sizeof(servaddr));
-    // servaddr.sin_family = AF_INET;
-    // servaddr.sin_port = htons(2345);
-    // bind(sockfd, (struct sockaddr *)&servaddr, sizeof(struct sockaddr));
-
-    // listen(sockfd, 10);
     user_inituserarr();
   
     int newfd;        // newly accept()ed socket descriptor
@@ -191,8 +183,6 @@ int main(int argc, char *argv[]) {
     int i, rv;
 
     struct addrinfo hints, *ai, *p;
-
-    // FD_ZERO(&read_fds);
 
     // get us a socket and bind it
     memset(&hints, 0, sizeof hints);
@@ -234,9 +224,6 @@ int main(int argc, char *argv[]) {
         perror("listen");
         exit(3);
     }
- 
-    // // add the listener to the master set
-    // FD_SET(listener, &master);
 
     // fdmax = listener;
     userManager.fdmax = listener;
@@ -244,7 +231,6 @@ int main(int argc, char *argv[]) {
     
 
     for(;;) {
-        // read_fds = master; // copy it
         user_readfdsrebuild();
 
         if (select(userManager.fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
@@ -276,18 +262,6 @@ int main(int argc, char *argv[]) {
                     } else {
                         clientsocketconfig(newfd);
 
-                        // usercount += 1;
-
-                        // FD_SET(newfd, &master); // add to master set
-                        // if (newfd > fdmax) {    // keep track of the max
-                        //     fdmax = newfd;
-                        // }
-
-                        // FD_SET(newfd, &master); // add to master set
-                        // if (newfd > fdmax) {    // keep track of the max
-                        //     fdmax = newfd;
-                        // }
-
                         user_addUserConn(newidx, newfd);
 
                         printf("selectserver: new connection from %s on "
@@ -312,7 +286,6 @@ int main(int argc, char *argv[]) {
                         }
                         printf("in %d bye!\n", i);
                         user_deleteUserConn(i);
-                        // FD_CLR(i, &master); // remove from master set
                     } else {
                         // we got some data from a client                        
                         Message message;
