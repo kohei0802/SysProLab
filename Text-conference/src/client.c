@@ -56,12 +56,6 @@ void routine_main();
 enum Command getCommand(const char*cmd_line);
 int routine_login();
 
-// struct Routines
-// {
-//     ()
-// } routines;
-
-
 int main(int argc, char *argv[]) {
     
 
