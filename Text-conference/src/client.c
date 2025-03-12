@@ -53,7 +53,6 @@ UserManageStruct thisClient = { .connected=false};
 
 enum Command parse_command(const char *cmd_line, int *argc, char ***argv_ptr);
 void routine_main();
-enum Command getCommand(const char*cmd_line);
 int routine_login();
 
 int main(int argc, char *argv[]) {
@@ -315,6 +314,8 @@ void routine_stdin() {
         printf(">> From YOU!: %s", cmd_line);
         cleanargs(argc, argv);
     }else if(command == COM_QUIT) {
+        printf("exiting....\n");
+        exit(1); // currently relying on the server's detection
         cleanargs(argc, argv);
     }else if(command == COM_ERROR) {
         perror("system error (parse)\n");
@@ -336,7 +337,20 @@ void routine_sockfd() {
     } else {
         buffer[nbytes] = '\0';
         deserialize(buffer, &message);
-        printf(">> From chat: %s", message.data);
+
+        printf("%s\n", buffer);
+        if (message.type == MT_MESSAGE) {
+            printf(">> From chat: %s", message.data);
+        } else if(message.type == MT_JN_ACK) {
+            printf("joined ses %s\n", message.data);
+        } else if (message.type == MT_JN_NAK) {
+            printf("failed to join %s ses\n", message.data);
+        } else if (message.type == MT_NS_ACK) {
+            printf("succeed create session %s\n", message.data);
+        }
+        else {
+            perror("unexpected message from server\n ");
+        }
     }
 }
 
@@ -370,41 +384,6 @@ void routine_main() {
             routine_sockfd();
         }
     }
-}
-
-enum Command getCommand(const char*cmd_line){
-    int argc;
-    char **argv;
-    enum Command retval = COM_WRONG;
-
-    if (parse_command(cmd_line, &argc, &argv) == 0)  {
-        if (strcmp(argv[0], "/login") == 0) {
-            retval = COM_LOGIN;
-        } else if (strcmp(argv[0], "/logout") == 0) {
-            retval = COM_LOGOUT;
-        } else if (strcmp(argv[0], "/joinsession") == 0) {
-            retval = COM_JOINSESSION;
-        } else if (strcmp(argv[0], "/leavesession") == 0) {
-            retval = COM_LEAVESESSION;
-        } else if (strcmp(argv[0], "/createsession") == 0) {
-            retval = COM_CREATESESSION;
-        } else if (strcmp(argv[0], "/list") == 0) {
-            retval = COM_LIST;
-        } else if (strcmp(argv[0], "/quit") == 0) {
-            retval = COM_QUIT;
-        } else {
-            retval = COM_TEXT;
-        }
-        
-        // Cleanup
-        for (int j = 0; j < argc; j++) {
-            free(argv[j]);
-        }
-        free(argv);
-    }
-
-    return retval;
-    
 }
 
 int routine_login() {

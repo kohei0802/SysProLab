@@ -436,6 +436,11 @@ int main(int argc, char *argv[]) {
                             int idx = user_getsessionIndex(atoi((char *)message.data));
                             if (idx >= 0) {
                                 user_joinsession(i, atoi((char *)message.data));
+                                message.type = MT_JN_ACK;
+                                sendMessage(i, message); // msg.data alr set by client
+                            } else {
+                                message.type = MT_JN_NAK;
+                                sendMessage(i, message); // msg.data alr set by client
                             }
                         } else if (message.type == MT_LEAVE_SESS) {
                             printf("user leave session\n");
