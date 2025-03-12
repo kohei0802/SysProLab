@@ -265,18 +265,34 @@ void routine_stdin() {
     if (command == COM_WRONG) {
         cleanargs(argc, argv);
     } else if(command == COM_LOGIN) {
+
         printf("/login invalid (alr executed)\n");
         cleanargs(argc, argv);
     } else if(command == COM_LOGOUT) {
+
         printf("logging out....\n");
         close(sockfd);
         thisClient.connected = false;
         cleanargs(argc, argv);
     }else if(command == COM_CREATESESSION) {
+
+        printf("create session\n");
+        message.type = MT_NEW_SESS;
+        strncpy((char *) message.data, argv[1], MAX_DATA - 1);
+        sendMessage(sockfd, message);
         cleanargs(argc, argv);
     }else if(command == COM_JOINSESSION) {
+
+        printf("joinsession \n");
+        message.type = MT_JOIN;
+        strncpy((char *) message.data, argv[1], MAX_DATA - 1);
+        sendMessage(sockfd, message);
         cleanargs(argc, argv);
     }else if(command == COM_LEAVESESSION) {
+
+        printf("leaving session\n");
+        message.type = MT_LEAVE_SESS;
+        sendMessage(sockfd, message);
         cleanargs(argc, argv);
     }else if(command == COM_LIST) {
         cleanargs(argc, argv);
@@ -284,7 +300,7 @@ void routine_stdin() {
         // build struct Message
         char *buf;
         int size;
-        message.type = COM_TEXT;
+        message.type = MT_MESSAGE;
         memcpy((char *) message.source, "123", 4);
         strncpy((char *) message.data, cmd_line, MAX_DATA - 1);
         message.data[MAX_DATA-1] = '\0';

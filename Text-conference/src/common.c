@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+
 
 /**
  * User has to free() on his own
@@ -56,3 +58,10 @@ deserialize(char *instring, struct Message *outmessage) {
     free(working_copy);
 }
 
+
+void 
+sendMessage(int sockfd, Message outgoingmsg) {
+    char *strmsg = serialize(outgoingmsg, NULL);
+    send(sockfd, strmsg, strlen(strmsg)*sizeof(char), 0);
+    free(strmsg);
+}

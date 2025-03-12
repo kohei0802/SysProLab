@@ -19,9 +19,8 @@
 
 #define MAX_CLIENT 50
 
-#define RESERVED_FDS 50
+#define MAX_SESSIONS 5
 
-#define ARR_LEN (MAX_CLIENT + RESERVED_FDS)
 
 /**
  * 
@@ -34,6 +33,11 @@ int listener;     // listening socket descriptor
 /**
  * User management
  */
+typedef struct Session {
+    int sessionId;
+    int counts; // of clients
+    bool deleted;
+} Session ;
 
 typedef struct userStruct {
     int sessionId; // conference id
@@ -42,29 +46,52 @@ typedef struct userStruct {
 } UserStruct ; //essentially extension to fd
 
 static struct UserManager {
-
     UserStruct users[MAX_CLIENT]; // contains all the users fd, check "bool deleted".
+    Session sessions[MAX_SESSIONS];
     int fdmax; // max fd
     int listenerfd; // fd of listener    
+
 } userManager;
 
 void user_inituserarr() {
     for (int i=0; i<MAX_CLIENT; i++) {
         userManager.users[i].deleted = true;
-        userManager.users[i].fd = -1; 
-        userManager.users[i].sessionId = 0; 
+    }
+
+    for (int slot=0; slot<MAX_SESSIONS; slot++) {
+        userManager.sessions[slot].deleted = true;
     }
 }
 
-int user_getOpenSlot() {
-    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
-        bool deleted = userManager.users[slotIdx].deleted;
-        if (deleted) {
-            return slotIdx;
-        } 
-    }
+// Mode 1 : client conns, Mode 2 : sessions
+int user_getOpenSlot(int mode) { 
+    if (mode == 1) {
+        // client conns
+        printf("searching 1\n");
+        for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+            bool deleted = userManager.users[slotIdx].deleted;
+            if (deleted) {
+                return slotIdx;
+            } 
+        }
 
-    return -1;
+        return -1;
+    } else if (mode == 2) { 
+        // sessions
+        printf("searching 2\n");
+        for (int slotIdx=0; slotIdx<MAX_SESSIONS; slotIdx++) {
+            bool deleted = userManager.sessions[slotIdx].deleted;
+            if (deleted) {
+                return slotIdx;
+            } 
+        }
+
+        return -1;
+    } else {
+        printf("wrong mode\n");
+        return -1;
+    }
+    
 }
 
 // rebuild fds
@@ -98,6 +125,13 @@ void user_addUserConn(int slotIdx, int newfd) {
     // fd manipulation is done by user_readfdsrebuild() every new select
 }
 
+void user_addSession(int emptyslotIdx, int sessionId) {
+    userManager.sessions[emptyslotIdx].deleted = false;
+    userManager.sessions[emptyslotIdx].counts = 0;
+    userManager.sessions[emptyslotIdx].sessionId = sessionId;
+    printf("add sess %d to idx %d\n ", sessionId, emptyslotIdx);
+}
+
 // even help you close(fd);
 void user_deleteUserConn(int fd) {
 
@@ -113,6 +147,69 @@ void user_deleteUserConn(int fd) {
     // fd manipulation is done by user_readfdsrebuild() every new select
 }
 
+// find any 0 users sessions and delete
+void user_deleteSession(int oldid) {
+    printf("try delete ses idx\n");
+    printf("oldid %d\n", oldid);
+    for(int slotIdx=0; slotIdx<MAX_SESSIONS; slotIdx++) {
+
+        Session session = userManager.sessions[slotIdx];
+
+        if (!session.deleted && session.sessionId==oldid) {
+
+            printf("decremented ses %d count from %d\n", oldid, userManager.sessions[slotIdx].counts);
+            if (--userManager.sessions[slotIdx].counts <= 0) {
+                printf("deleting ses idx\n");
+                userManager.sessions[slotIdx].deleted = true;
+            }
+        }
+    }
+}
+
+int user_getsessionIndex(int sessionIdx) {
+    printf("ses idx req\n");
+    for(int slotIdx=0; slotIdx<MAX_SESSIONS; slotIdx++) {
+
+        Session session = userManager.sessions[slotIdx];
+
+        if (!session.deleted && session.sessionId==sessionIdx) {
+            printf("found ses idx\n");
+            return slotIdx;
+        }
+    }
+
+    printf("ses %d not found\n", sessionIdx);
+
+    return -1;
+}
+
+int user_getuserIndex(int fd) {
+    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+        UserStruct userStruct = userManager.users[slotIdx];
+        if (!userStruct.deleted && userStruct.fd==fd) {// found the correspongind connection
+            return slotIdx;
+        }
+    }
+
+    return -1;
+} 
+
+void user_joinsession(int fd, int sessionId) {
+    for (int slotIdx = 0; slotIdx < MAX_CLIENT; slotIdx++) {
+        UserStruct user = userManager.users[slotIdx];
+
+        if (!user.deleted && user.fd==fd) {
+            userManager.users[slotIdx].sessionId = sessionId;
+        
+            int idx = user_getsessionIndex(sessionId);
+            if (idx >= 0) {
+                int debug = ++userManager.sessions[idx].counts;
+                printf("increement ses %d count to %d\n", sessionId, debug);
+            }
+        }
+    }
+}
+
 /**
  * Address formatting
  */
@@ -126,10 +223,19 @@ void *get_in_addr(struct sockaddr *sa)
 }
 
 void broadcast(int fd, ssize_t nbytes, char *terminatedstr) {
+    int sessionId;
+    int idx = user_getuserIndex(fd);
+    if (idx<0) {
+        printf("non session user tried to broadcast\n");
+        return;
+    }
+
+    sessionId = userManager.users[idx].sessionId;
+
     printf("broadcast %s\n", terminatedstr);
     for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
         UserStruct userStruct = userManager.users[slotIdx];
-        if (!userStruct.deleted && userStruct.fd != fd) {// found the correspongind connection
+        if (!userStruct.deleted && userStruct.fd != fd && userStruct.sessionId==sessionId) {
             if (send(userStruct.fd, terminatedstr, nbytes, 0) == -1) {
                 perror("send");
             }
@@ -246,7 +352,7 @@ int main(int argc, char *argv[]) {
                 if (i == listener) {
                     // handle new connections
                     
-                    int newidx = user_getOpenSlot();
+                    int newidx = user_getOpenSlot(1);
                     if (newidx == -1) {
                         printf("refused. max connection reached\n");
                         continue; // without accepting
@@ -285,34 +391,62 @@ int main(int argc, char *argv[]) {
                             perror("recv");
                         }
                         printf("in %d bye!\n", i);
+                        int idx = user_getuserIndex(i);
+                        int oldsessionid = userManager.users[idx].sessionId;
+                        user_deleteSession(oldsessionid);
                         user_deleteUserConn(i);
                     } else {
                         // we got some data from a client                        
                         Message message;
                         printf("from client: %s\n", buf);
                         deserialize(buf, &message);
-                        printf("from client2: %s\n", buf);
+                        printf("deserialized: %s\n", buf);
 
                         if (message.type == MT_LOGIN) { // Client implement: end conn if MT_LO_NAK replied
                             printf("data %s\n", message.data);
+
+                            // check password 
                             if (strcmp((char*)message.data, "0802") == 0) {
                                 message.type = MT_LO_ACK; // Client implement: allow joinsession if MT+LO_ACK replied
 
-                                char *strmsg = serialize(message, NULL);
-                                send(i, strmsg, strlen(strmsg)*sizeof(char), 0);
-                                free(strmsg);
+                                int fd = i;
+                                sendMessage(fd, message);
                             } else {
-                                printf("login failed\n");
+                                    printf("login failed\n");
                                 message.type = MT_LO_NAK; // Client implement: end conn if MT_LO_NAK replied
-
-                                char *strmsg = serialize(message, NULL);
-                                send(i, strmsg, strlen(strmsg)*sizeof(char), 0);
-                                free(strmsg);
-                                printf("in %d bye2!\n", i);
-                                user_deleteUserConn(i);
+                                int fd = i;
+                                sendMessage(fd, message);
+                                    printf("in %d bye2!\n", fd);
+                                user_deleteUserConn(fd);
                                 continue;
                             }
-                        } else {
+                        } else if (message.type == MT_NEW_SESS) {
+                            printf("user new session in\n");
+                            int emptyIdx = user_getOpenSlot(2);
+                            if (emptyIdx >= 0) {
+                                // Not handling duplicate session
+                                user_addSession(emptyIdx,atoi((char *)message.data));
+                                message.type = MT_NS_ACK;
+                                sendMessage(i, message);
+                            } else {
+                                // no need to reply. client doesn't need to know.
+                            }
+                        } else if (message.type == MT_JOIN) {
+                            printf("user joins\n");
+                            int idx = user_getsessionIndex(atoi((char *)message.data));
+                            if (idx >= 0) {
+                                user_joinsession(i, atoi((char *)message.data));
+                            }
+                        } else if (message.type == MT_LEAVE_SESS) {
+                            printf("user leave session\n");
+                            int idx = user_getuserIndex(i);
+                            if (idx >= 0) {
+                                int oldid = userManager.users[idx].sessionId;
+                                userManager.users[idx].sessionId = 0;
+                                user_deleteSession(oldid);
+                            }
+                        }
+                        else {
                             broadcast(i, nbytes, buf);
                         }
                     }
@@ -324,3 +458,4 @@ int main(int argc, char *argv[]) {
     
     return 0;
 }
+

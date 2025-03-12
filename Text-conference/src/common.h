@@ -37,11 +37,13 @@ enum MessageType {
 char * 
 serialize(struct Message message, int *outsize);
 
-
 /**
  * User must null-terminate the data[] of Message
  */
 void 
 deserialize(char *instring, struct Message *outmessage) ;
+
+void 
+sendMessage(int sockfd, Message outgoingmsg);
 
 #endif // COMMON_H
