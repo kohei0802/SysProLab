@@ -1,4 +1,8 @@
 # Projects Summary
+- This repo contains projects related to system programming
+- Meant for quick experimental project, not for maintainability
+- network programming, utilizing unix/linux/posix programming standard
+- mostly in C language
 
 ## Filetransfer
 - Adaptive Network File Transfer System
