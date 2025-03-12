@@ -268,6 +268,9 @@ void routine_stdin() {
         printf("/login invalid (alr executed)\n");
         cleanargs(argc, argv);
     } else if(command == COM_LOGOUT) {
+        printf("logging out....\n");
+        close(sockfd);
+        thisClient.connected = false;
         cleanargs(argc, argv);
     }else if(command == COM_CREATESESSION) {
         cleanargs(argc, argv);
