@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "netdb.h": "c",
+        "unistd.h": "c",
+        "ipc.h": "c",
+        "array": "c",
+        "deque": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "types.h": "c",
+        "server.h": "c"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc-11"
+}   
