@@ -274,6 +274,11 @@ void clientsocketconfig(int newfd) {
  */
 int main(int argc, char *argv[]) {
 
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <argument>\n", argv[0]);
+        exit(1);
+    }
+
     user_inituserarr();
   
     int newfd;        // newly accept()ed socket descriptor
@@ -295,7 +300,7 @@ int main(int argc, char *argv[]) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ((rv = getaddrinfo(NULL, PORT, &hints, &ai)) != 0) {
+    if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
         fprintf(stderr, "selectserver: %s\n", gai_strerror(rv));
         exit(1);
     }

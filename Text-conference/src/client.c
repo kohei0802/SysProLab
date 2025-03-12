@@ -41,7 +41,7 @@ static int sockfd;
 
 static struct sockaddr_in servaddr;
 
-static int initsocket();
+static int initsocket(char *destip, int desport) ;
 
 static unsigned char clientId[MAX_NAME] = "test";
 
@@ -81,9 +81,12 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-int initsocket() {
-    char destaddr[] = "127.0.0.1";
-    int destport = 2345;
+int initsocket(char *destip, int destport) {
+    char destaddr[20] = "127.0.0.1";
+
+    strncpy(destaddr, destip, 20);
+
+    printf("copied %s\n", destaddr);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -337,8 +340,7 @@ void routine_sockfd() {
     } else {
         buffer[nbytes] = '\0';
         deserialize(buffer, &message);
-
-        printf("%s\n", buffer);
+        
         if (message.type == MT_MESSAGE) {
             printf(">> From chat: %s", message.data);
         } else if(message.type == MT_JN_ACK) {
@@ -404,18 +406,16 @@ int routine_login() {
 
                 if (argc != 5 || strcmp(argv[0], "/login") != 0 ) {
                     printf("Login with: /login <client ID> <password> <server-IP> <server-port>\n");
-                    for (int j = 0; j < argc; j++) {
-                        free(argv[j]);
-                    }
-                    free(argv);
-                    
+                    cleanargs(argc, argv);
                     continue;
                 }
 
                 // from here, enough args and verified the command is "/login"
                 // attemp login, if fails, ask user to try again
-                if (initsocket() == -1) {
+                printf("%s %s\n", argv[3], argv[4]);
+                if (initsocket(argv[3], atoi((char *)argv[4])) == -1) {
                     printf("Try another addr\n");
+                    cleanargs(argc, argv);
                     continue;
                 }
 
@@ -424,6 +424,9 @@ int routine_login() {
                 strcpy((char *) message.source, argv[1]);
                 strcpy((char *)message.data, argv[2]);
                 str = serialize(message, NULL);
+
+                // free argc and things in argv and argv
+                cleanargs(argc, argv);
 
                 ssize_t nbytes =  send(sockfd, str, strlen(str)*sizeof(char), 0);
                 if (nbytes < 0) {
