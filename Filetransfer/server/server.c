@@ -15,7 +15,7 @@
 // #define DEBUG
 
 typedef struct addrinfo Addr_metadata;
-typedef struct servaddr Address;
+typedef struct sockaddr_storage Address;
 
 typedef struct ftp_client {
     Address client_addr;
@@ -141,7 +141,7 @@ void handle_file_transfer() {
     
     unsigned int expected_fragno = 1;
     while(1) {
-        struct servaddr client_addr;
+        struct sockaddr_storage client_addr;
         socklen_t addr_len = sizeof(client_addr);
         
         ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer)-1, 0,

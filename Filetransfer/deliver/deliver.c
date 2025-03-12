@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-
 #include <unistd.h>
 #include <time.h>
 #include <stdbool.h>
@@ -16,7 +14,7 @@
 // #define DEBUG
 
 typedef struct addrinfo Addr_metadata;
-typedef struct servaddr Address;
+typedef struct sockaddr_storage Address;
 typedef struct usec_timeouter {
     float estimated_timeout;
     float dev_RTT;
@@ -38,7 +36,7 @@ ssize_t wrecvfrom (int fragno, int __fd, void *__restrict __buf, size_t __n, int
 
 //Socket setup
 int sockfd;
-Addr_metadata address_criteria, *resolved_address=NULL;
+Addr_metadata address_criteria, *resolved_address=NULL, *p=NULL;
 
 Usec_timeouter timeouter = {0, 8, 0};
 
@@ -314,4 +312,3 @@ void set_timeout(int sockfd, Usec_timeouter timeoutstruct) {
     tv.tv_usec = (long)(timeoutstruct.timeout_interval) % (1000 * 1000);
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval));
 }
-
