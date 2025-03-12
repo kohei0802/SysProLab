@@ -1,7 +1,7 @@
 # Projects Summary
 
 ## Filetransfer
-##Adaptive Network File Transfer System
+- Adaptive Network File Transfer System
 - Implemented a file transfer application with C
 - Implemented estimation of RTT 
 - Provided abstraction layers by creating packet sending function that hides all the logic that deals with network reordering, network duplication, etc.
