@@ -19,16 +19,9 @@
 
 #define MAX_CLIENT 50
 
-/**
- * User management
- */
-static int usercount = 0; //to limit total clients
+#define RESERVED_FDS 50
 
-typedef struct userStruct {
-    int sessionId;
-} UserStruct; //essentially extension to fd
-
-static UserStruct users[MAX_CLIENT + 50]; //use fd as the index, 50 is arbitrary
+#define ARR_LEN (MAX_CLIENT + RESERVED_FDS)
 
 /**
  * 
@@ -38,6 +31,88 @@ fd_set master;    // master file descriptor list
 fd_set read_fds;  // temp file descriptor list for select()
 int fdmax;        // maximum file descriptor number
 int listener;     // listening socket descriptor
+
+/**
+ * User management
+ */
+
+typedef struct userStruct {
+    int sessionId; // conference id
+    bool deleted; // indicate if the userStruct is used
+    int fd; // socket fd. Client side initiates "fin". Server doesn't
+} UserStruct ; //essentially extension to fd
+
+static struct UserManager {
+
+    UserStruct users[MAX_CLIENT]; // contains all the users fd, check "bool deleted".
+    int fdmax; // max fd
+    int listenerfd; // fd of listener    
+} userManager;
+
+void user_inituserarr() {
+    for (int i=0; i<MAX_CLIENT; i++) {
+        userManager.users[i].deleted = true;
+        userManager.users[i].fd = -1; 
+        userManager.users[i].sessionId = 0; 
+    }
+}
+
+int user_getOpenSlot() {
+    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+        bool deleted = userManager.users[slotIdx].deleted;
+        if (deleted) {
+            return slotIdx;
+        } 
+    }
+
+    return -1;
+}
+
+// rebuild fds
+void user_readfdsrebuild() {
+    FD_ZERO(&read_fds);
+    FD_SET(listener, &read_fds);
+
+    int tmp_fdmax = listener;
+
+    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+        UserStruct userStruct = userManager.users[slotIdx];
+        if (!userStruct.deleted) {
+            printf("slot %d, fd %d\n", slotIdx, userStruct.fd);
+            FD_SET(userStruct.fd, & read_fds);
+
+            if (userStruct.fd > tmp_fdmax) {
+                tmp_fdmax = userStruct.fd;
+            }
+        }
+    }
+
+    printf("fdmax: %d\n", tmp_fdmax);
+    userManager.fdmax = tmp_fdmax;
+}
+
+// rewrite the current user slot
+void user_addUserConn(int slotIdx, int newfd) {
+    userManager.users[slotIdx].deleted = false;
+    userManager.users[slotIdx].fd = newfd;
+    userManager.users[slotIdx].sessionId = -1;
+    // fd manipulation is done by user_readfdsrebuild() every new select
+}
+
+// even help you close(fd);
+void user_deleteUserConn(int fd) {
+
+    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+        UserStruct userStruct = userManager.users[slotIdx];
+        if (!userStruct.deleted && userStruct.fd==fd ) {// found the correspongind connection
+            printf("deleted suc\n");
+            userManager.users[slotIdx].deleted = true;
+            close(fd);
+            return;
+        }
+    }
+    // fd manipulation is done by user_readfdsrebuild() every new select
+}
 
 /**
  * Address formatting
@@ -51,22 +126,42 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void broadcast(int i, ssize_t nbytes, char *terminatedstr) {
-    
-        // except the listener and ourselves
-        for(int j = 0; j <= fdmax; j++) {
-                            // send to everyone!
-            if (FD_ISSET(j, &master)) {
-                if (j != listener && j != i) {
-                    if (send(j, terminatedstr, nbytes, 0) == -1) {
-                        perror("send");
-                    }
-                }
+void broadcast(int fd, ssize_t nbytes, char *terminatedstr) {
+    printf("broadcast %s\n", terminatedstr);
+    for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+        UserStruct userStruct = userManager.users[slotIdx];
+        if (!userStruct.deleted && userStruct.fd != fd) {// found the correspongind connection
+            if (send(userStruct.fd, terminatedstr, nbytes, 0) == -1) {
+                perror("send");
             }
-            
         }
-        
-    
+    }
+}
+
+void clientsocketconfig(int newfd) {
+    int keepalive = 1;
+    int keepcnt = 3;        // Number of probes before connection is declared dead
+    int keepidle = 30;      // Seconds before sending keepalive probes
+    int keepintvl = 5;      // Seconds between keepalive probes
+
+    if (setsockopt(newfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
+        perror("setsockopt(SO_KEEPALIVE)");
+    }
+
+    // Set the number of probes before connection is declared dead
+    if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt)) < 0) {
+        perror("setsockopt(TCP_KEEPCNT)");
+    }
+
+    // Set the time before sending keepalive probes
+    if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle)) < 0) {
+        perror("setsockopt(TCP_KEEPIDLE)");
+    }
+
+    // Set the interval between keepalive probes
+    if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl)) < 0) {
+        perror("setsockopt(TCP_KEEPINTVL)");
+    }
 }
 
 /**
@@ -81,7 +176,7 @@ int main(int argc, char *argv[]) {
     // bind(sockfd, (struct sockaddr *)&servaddr, sizeof(struct sockaddr));
 
     // listen(sockfd, 10);
-
+    user_inituserarr();
   
     int newfd;        // newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // client address
@@ -97,8 +192,7 @@ int main(int argc, char *argv[]) {
 
     struct addrinfo hints, *ai, *p;
 
-    FD_ZERO(&master);    // clear the master and temp sets
-    FD_ZERO(&read_fds);
+    // FD_ZERO(&read_fds);
 
     // get us a socket and bind it
     memset(&hints, 0, sizeof hints);
@@ -141,26 +235,35 @@ int main(int argc, char *argv[]) {
         exit(3);
     }
  
-    // add the listener to the master set
-    FD_SET(listener, &master);
+    // // add the listener to the master set
+    // FD_SET(listener, &master);
 
-    fdmax = listener;
+    // fdmax = listener;
+    userManager.fdmax = listener;
+    userManager.listenerfd = listener;
+    
 
     for(;;) {
-        read_fds = master; // copy it
-        if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
+        // read_fds = master; // copy it
+        user_readfdsrebuild();
+
+        if (select(userManager.fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
             exit(4);
         }
 
         // run through the existing connections looking for data to read
-        for(i = 0; i <= fdmax; i++) {
+        for(i = 0; i <= userManager.fdmax; i++) {
+            printf("start loop with i %d\n", i);
             if (FD_ISSET(i, &read_fds)) { // we got one!!
+                
                 if (i == listener) {
                     // handle new connections
                     
-                    if (usercount >= MAX_CLIENT) {
-                        continue;
+                    int newidx = user_getOpenSlot();
+                    if (newidx == -1) {
+                        printf("refused. max connection reached\n");
+                        continue; // without accepting
                     }
                     
                     addrlen = sizeof remoteaddr;
@@ -171,41 +274,22 @@ int main(int argc, char *argv[]) {
                     if (newfd == -1) {
                         perror("accept");
                     } else {
-                        int keepalive = 1;
-                        int keepcnt = 3;        // Number of probes before connection is declared dead
-                        int keepidle = 30;      // Seconds before sending keepalive probes
-                        int keepintvl = 5;      // Seconds between keepalive probes
+                        clientsocketconfig(newfd);
 
-                        if (setsockopt(newfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
-                            perror("setsockopt(SO_KEEPALIVE)");
-                        }
+                        // usercount += 1;
 
-                        // Set the number of probes before connection is declared dead
-                        if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt)) < 0) {
-                            perror("setsockopt(TCP_KEEPCNT)");
-                        }
+                        // FD_SET(newfd, &master); // add to master set
+                        // if (newfd > fdmax) {    // keep track of the max
+                        //     fdmax = newfd;
+                        // }
 
-                        // Set the time before sending keepalive probes
-                        if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle)) < 0) {
-                            perror("setsockopt(TCP_KEEPIDLE)");
-                        }
+                        // FD_SET(newfd, &master); // add to master set
+                        // if (newfd > fdmax) {    // keep track of the max
+                        //     fdmax = newfd;
+                        // }
 
-                        // Set the interval between keepalive probes
-                        if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl)) < 0) {
-                            perror("setsockopt(TCP_KEEPINTVL)");
-                        }
+                        user_addUserConn(newidx, newfd);
 
-                        usercount += 1;
-
-                        FD_SET(newfd, &master); // add to master set
-                        if (newfd > fdmax) {    // keep track of the max
-                            fdmax = newfd;
-                        }
-
-                        FD_SET(newfd, &master); // add to master set
-                        if (newfd > fdmax) {    // keep track of the max
-                            fdmax = newfd;
-                        }
                         printf("selectserver: new connection from %s on "
                             "socket %d\n",
                             inet_ntop(remoteaddr.ss_family,
@@ -216,7 +300,8 @@ int main(int argc, char *argv[]) {
                 } else {
                     // handle data from a client
                     nbytes = recv(i, buf, sizeof buf, 0);
-                    buf[nbytes]='\0';
+                    buf[nbytes]='\0';   
+
                     if (nbytes <= 0) {
                         // got error or connection closed by client
                         if (nbytes == 0) {
@@ -225,13 +310,38 @@ int main(int argc, char *argv[]) {
                         } else {
                             perror("recv");
                         }
-                        close(i); // bye!
-                        FD_CLR(i, &master); // remove from master set
-                        usercount -= 1;
+                        printf("in %d bye!\n", i);
+                        user_deleteUserConn(i);
+                        // FD_CLR(i, &master); // remove from master set
                     } else {
-                        // we got some data from a client
-                        printf("%s", buf);
-                        broadcast(i, nbytes, buf);
+                        // we got some data from a client                        
+                        Message message;
+                        printf("from client: %s\n", buf);
+                        deserialize(buf, &message);
+                        printf("from client2: %s\n", buf);
+
+                        if (message.type == MT_LOGIN) { // Client implement: end conn if MT_LO_NAK replied
+                            printf("data %s\n", message.data);
+                            if (strcmp((char*)message.data, "0802") == 0) {
+                                message.type = MT_LO_ACK; // Client implement: allow joinsession if MT+LO_ACK replied
+
+                                char *strmsg = serialize(message, NULL);
+                                send(i, strmsg, strlen(strmsg)*sizeof(char), 0);
+                                free(strmsg);
+                            } else {
+                                printf("login failed\n");
+                                message.type = MT_LO_NAK; // Client implement: end conn if MT_LO_NAK replied
+
+                                char *strmsg = serialize(message, NULL);
+                                send(i, strmsg, strlen(strmsg)*sizeof(char), 0);
+                                free(strmsg);
+                                printf("in %d bye2!\n", i);
+                                user_deleteUserConn(i);
+                                continue;
+                            }
+                        } else {
+                            broadcast(i, nbytes, buf);
+                        }
                     }
                 } // END handle data from client
             } // END got new incoming connection

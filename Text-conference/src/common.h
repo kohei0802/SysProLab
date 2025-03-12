@@ -37,6 +37,10 @@ enum MessageType {
 char * 
 serialize(struct Message message, int *outsize);
 
+
+/**
+ * User must null-terminate the data[] of Message
+ */
 void 
 deserialize(char *instring, struct Message *outmessage) ;
 

@@ -29,7 +29,8 @@ enum Command {
     COM_LIST,
     COM_QUIT,
     COM_TEXT, 
-    COM_WRONG
+    COM_WRONG, // free() needed
+    COM_ERROR, // no malloc() succeeded -> no free() needed in parse_command()
 };
 
 /**
@@ -45,118 +46,43 @@ static int initsocket();
 static unsigned char clientId[MAX_NAME] = "test";
 
 typedef struct UserManageStruct  {
-    bool loggedin;
     bool connected;
 } UserManageStruct;
 
-UserManageStruct thisClient = {.loggedin = false, .connected=false};
+UserManageStruct thisClient = { .connected=false};
 
-int parse_command(const char *cmd_line, int *argc, char ***argv_ptr);
-void logic(const char *cmd_line);
+enum Command parse_command(const char *cmd_line, int *argc, char ***argv_ptr);
+void routine_main();
 enum Command getCommand(const char*cmd_line);
+int routine_login();
+
+// struct Routines
+// {
+//     ()
+// } routines;
+
 
 int main(int argc, char *argv[]) {
-    int retval;
-
-    initsocket();
+    
 
     while (true) {
         // Watch stdin (fd 0) and sockfd to see when it has input
 
         // user not logged in, there shouldn't be connection and sockfd
-        // otherwise, the user can leave and join another session 
+        // otherwise, the user can leave and join another session
 
-
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        FD_SET(sockfd, &readfds);
-
-        int maxfd = STDIN_FILENO;
-
-        // if (thisClient.connected) {
-        //     FD_SET(sockfd, &readfds);
-        //     maxfd = sockfd > STDIN_FILENO ? sockfd : STDIN_FILENO;
-        // }
-        maxfd = sockfd > STDIN_FILENO ? sockfd : STDIN_FILENO;
-
-        retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-
-        if (retval < 0) {
-            printf("select() error\n");
-            continue;
+        if (!thisClient.connected) {
+            printf("login mode\n");
+            routine_login();
+        }
+        
+        if (thisClient.connected) {
+            printf("main mode\n");
+            routine_main();
         }
 
-        if (FD_ISSET(STDIN_FILENO, &readfds)) {
-            char input[MAX_DATA];
-            struct Message message;
 
-            if (fgets(input, sizeof(input), stdin) != NULL) {
-                enum Command command = getCommand(input);
-
-                switch (command)
-                {
-                case COM_LOGIN:
-                    logic(input);
-                    break;
-                case COM_LOGOUT:
-                    logic(input);
-                    break;
-                case COM_JOINSESSION:
-                    logic(input);
-                    break;
-                case COM_LEAVESESSION:
-                    logic(input);
-                    break;
-                case COM_CREATESESSION:
-                    logic(input);
-                    break;
-                case COM_LIST:
-                    logic(input);
-                    break;
-                case COM_QUIT:
-                    logic(input);
-                    break;
-                case COM_TEXT:
-                    // build struct Message
-                    char *buf;
-                    int size;
-                    message.type = COM_TEXT;
-                    memcpy((char *) message.source, "123", 4);
-                    strncpy((char *) message.data, input, MAX_DATA - 1);
-                    message.data[MAX_DATA-1] = '\0';
-
-                    buf = serialize(message, &size);
-
-                    ssize_t nbytes = send(sockfd, buf, strlen(buf) * sizeof(char), 0);
-                    if (nbytes < 0) {
-                        perror("send failed");
-                    }
-                    break;
-                case COM_WRONG:
-                    break;
-                default:
-                    printf("Unknown command\n");
-                    break;
-                }
-            }
-
-            
-        }
-
-        if (FD_ISSET(sockfd, &readfds)) {
-            char buffer[1024];
-            ssize_t nbytes = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
-            if (nbytes < 0) {
-                perror("recv error");
-            } else if (nbytes == 0) {
-                printf("server closed\n");
-                break;
-            } else {
-                buffer[nbytes] = '\0';
-                printf("%s", buffer);
-            }
-        }
+        
         
     }
     
@@ -175,6 +101,8 @@ int initsocket() {
         exit(1);
     }
 
+    printf("sockfd %d\n", sockfd);
+
     //Socket setup
 
     struct in_addr inp;
@@ -191,23 +119,21 @@ int initsocket() {
 
         printf("sock conn error\n");
         close(sockfd);
-        exit(1);    // Or return -1 if you want to handle it in main()
+        return -1;
 
     }
 
+    return 0;
     // char buf[] = "message";
     // ssize_t size = sizeof(buf) / sizeof(char);
     // ssize_t nbytes = send(sockfd, buf, size, 0);
     // printf("%ld bytes sent\n", nbytes);
 }
 
-int initiomultiplex() {
-    
-}
  
-int parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
+enum Command parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
     if (!cmd_line || !argc || !argv_ptr) {
-        return -1;
+        return COM_ERROR;
     }
 
     // First pass: count arguments
@@ -235,7 +161,7 @@ int parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
     // Allocate argv array
     *argv_ptr = malloc((*argc + 1) * sizeof(char *));
     if (!*argv_ptr) {
-        return -1;
+        return COM_ERROR;
     }
 
     // Second pass: copy arguments
@@ -262,7 +188,7 @@ int parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
                         free(argv[i]);
                     }
                     free(argv);
-                    return -1;
+                    return COM_ERROR;
                 }
                 
                 strncpy(argv[arg_idx], word_start, len);
@@ -288,45 +214,152 @@ int parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
     }
 
     argv[*argc] = NULL;  // NULL terminate the array
-    return 0;
+
+    if (strcmp(argv[0], "/login") == 0) {
+        if (*argc == 5) {
+            return COM_LOGIN;
+        }
+        printf("Usage: /login <client ID> <password> <server-IP> <server-port>\n");
+    } else if (strcmp(argv[0], "/logout") == 0) {
+        printf("Command: LOGOUT\n");
+        return COM_LOGOUT;
+    } else if (strcmp(argv[0], "/joinsession") == 0) {
+        if (*argc == 2) {
+            return COM_JOINSESSION;
+        }
+        printf("Usage: /joinsession <session ID>\n");
+    } else if (strcmp(argv[0], "/leavesession") == 0) {
+        printf("leave session\n");
+        return COM_LEAVESESSION;
+    } else if (strcmp(argv[0], "/createsession") == 0) {
+        if (*argc == 2) {
+            return COM_CREATESESSION;
+        }
+        printf("Usage: /createsession <session ID>\n");
+    } else if (strcmp(argv[0], "/list") == 0) {
+        printf("Command: LIST\n");
+        return COM_LIST;
+    } else if (strcmp(argv[0], "/quit") == 0) {
+        printf("Command: QUIT\n");
+        return COM_QUIT;
+    } else {
+        //text
+        return COM_TEXT;
+    }
+
+    return COM_WRONG;
 }
 
+void cleanargs(int argc, char **argv) {
+    for (int j = 0; j < argc; j++) {
+        free(argv[j]);
+    }
+    free(argv); 
+}
 
-void logic(const char *cmd_line) {
+void routine_stdin() {
+    char* str;
+
     int argc;
     char **argv;
 
-    if (parse_command(cmd_line, &argc, &argv) == 0) {
+    enum Command command;
+    char cmd_line[MAX_DATA * 2];
+    if (fgets(cmd_line, sizeof(cmd_line), stdin) == NULL) {
+        return;
+    }
+    command = parse_command(cmd_line, &argc, &argv);
 
-        if (strcmp(argv[0], "/login") == 0) {
-            printf("%d\n", argc);
-            if (argc != 5) {
-                printf("Usage: /login <client ID> <password> <server-IP> <server-port>\n");
-            }
-        } else if (strcmp(argv[0], "/logout") == 0) {
-            printf("Command: LOGOUT\n");
-        } else if (strcmp(argv[0], "/joinsession") == 0) {
-            if (argc != 2) {
-                printf("Usage: /joinsession <session ID>\n");
-            }
-        } else if (strcmp(argv[0], "/leavesession") == 0) {
-        } else if (strcmp(argv[0], "/createsession") == 0) {
-            if (argc != 2) {
-                printf("Usage: /createsession <session ID>\n");
-            }
-        } else if (strcmp(argv[0], "/list") == 0) {
-            printf("Command: LIST\n");
-        } else if (strcmp(argv[0], "/quit") == 0) {
-            printf("Command: QUIT\n");
-        } else {
-            printf("<<<<<Log in before talking>>>>>\n");
-        }
+    Message message;
+
+    if (command == COM_WRONG) {
+        cleanargs(argc, argv);
+    } else if(command == COM_LOGIN) {
+        printf("/login invalid (alr executed)\n");
+        cleanargs(argc, argv);
+    } else if(command == COM_LOGOUT) {
+        cleanargs(argc, argv);
+    }else if(command == COM_CREATESESSION) {
+        cleanargs(argc, argv);
+    }else if(command == COM_JOINSESSION) {
+        cleanargs(argc, argv);
+    }else if(command == COM_LEAVESESSION) {
+        cleanargs(argc, argv);
+    }else if(command == COM_LIST) {
+        cleanargs(argc, argv);
+    }else if(command == COM_TEXT) {
+        // build struct Message
+        char *buf;
+        int size;
+        message.type = COM_TEXT;
+        memcpy((char *) message.source, "123", 4);
+        strncpy((char *) message.data, cmd_line, MAX_DATA - 1);
+        message.data[MAX_DATA-1] = '\0';
         
-        // Cleanup
-        for (int j = 0; j < argc; j++) {
-            free(argv[j]);
+        buf = serialize(message, &size);
+        ssize_t nbytes = send(sockfd, buf, strlen(buf) * sizeof(char), 0);
+        if (nbytes < 0) {
+            perror("send failed");
         }
-        free(argv);
+        free(buf);
+
+        printf(">> From YOU!: %s", cmd_line);
+        cleanargs(argc, argv);
+    }else if(command == COM_QUIT) {
+        cleanargs(argc, argv);
+    }else if(command == COM_ERROR) {
+        perror("system error (parse)\n");
+        exit(1);
+    } else {
+        printf("input error (no option)\n");
+    }
+}
+
+void routine_sockfd() {
+    Message message;
+    char buffer[1024];
+    ssize_t nbytes = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
+    if (nbytes < 0) {
+        perror("recv error");
+    } else if (nbytes == 0) {
+        printf("server closed\n");
+        thisClient.connected = false;
+    } else {
+        buffer[nbytes] = '\0';
+        deserialize(buffer, &message);
+        printf(">> From chat: %s", message.data);
+    }
+}
+
+void routine_main() {
+    int retval;
+
+    while (thisClient.connected)
+    {
+        /* code */
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        FD_SET(sockfd, &readfds);
+
+        int maxfd = STDIN_FILENO;
+
+        maxfd = sockfd > STDIN_FILENO ? sockfd : STDIN_FILENO;
+
+        retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+
+        if (retval < 0) {
+            printf("select() error\n");
+            continue;
+        }
+
+        if (FD_ISSET(STDIN_FILENO, &readfds)) {
+            routine_stdin();
+        }
+
+        if (FD_ISSET(sockfd, &readfds)) {
+            routine_sockfd();
+        }
     }
 }
 
@@ -364,3 +397,77 @@ enum Command getCommand(const char*cmd_line){
     return retval;
     
 }
+
+int routine_login() {
+
+    int argc;
+    char **argv;
+    char input[MAX_DATA * 2];
+    char reply[MAX_DATA];
+    Message reply_msg;
+    Message message;
+    message.type = MT_LOGIN;
+    char* str;
+
+    while( !thisClient.connected) {
+
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            if (parse_command(input, &argc, &argv) != COM_ERROR) {
+
+                if (argc != 5 || strcmp(argv[0], "/login") != 0 ) {
+                    printf("Login with: /login <client ID> <password> <server-IP> <server-port>\n");
+                    for (int j = 0; j < argc; j++) {
+                        free(argv[j]);
+                    }
+                    free(argv);
+                    
+                    continue;
+                }
+
+                // from here, enough args and verified the command is "/login"
+                // attemp login, if fails, ask user to try again
+                if (initsocket() == -1) {
+                    printf("Try another addr\n");
+                    continue;
+                }
+
+                
+                // from here, socket is connected
+                strcpy((char *) message.source, argv[1]);
+                strcpy((char *)message.data, argv[2]);
+                str = serialize(message, NULL);
+
+                ssize_t nbytes =  send(sockfd, str, strlen(str)*sizeof(char), 0);
+                if (nbytes < 0) {
+                    printf("send failed");
+                    free(str);
+                    continue;
+                }
+
+                nbytes = recv(sockfd, reply, MAX_DATA, 0);
+                deserialize(reply, &reply_msg);
+
+                switch (reply_msg.type)
+                {
+                case MT_LO_ACK:
+                    thisClient.connected = true;
+                    printf("logged in & connected \n");
+                    break;
+                case MT_LO_NAK:
+                    printf("wrong userid / password \n");
+                    close(sockfd);
+                    break;
+                default:
+                    printf("login protocol failed\n");
+                    close(sockfd);
+                    break;
+                }
+
+                free(str);
+
+            }
+
+        }
+    }
+}
+
