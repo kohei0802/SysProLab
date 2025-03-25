@@ -297,6 +297,8 @@ void routine_stdin() {
         sendMessage(sockfd, message);
         cleanargs(argc, argv);
     }else if(command == COM_LIST) {
+        message.type = MT_QUERY;
+        sendMessage(sockfd, message);
         cleanargs(argc, argv);
     }else if(command == COM_TEXT) {
         // build struct Message

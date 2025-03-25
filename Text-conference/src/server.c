@@ -121,7 +121,7 @@ void user_readfdsrebuild() {
 void user_addUserConn(int slotIdx, int newfd) {
     userManager.users[slotIdx].deleted = false;
     userManager.users[slotIdx].fd = newfd;
-    userManager.users[slotIdx].sessionId = -1;
+    userManager.users[slotIdx].sessionId = 0;
     // fd manipulation is done by user_readfdsrebuild() every new select
 }
 
@@ -456,7 +456,24 @@ int main(int argc, char *argv[]) {
                                 user_deleteSession(oldid);
                             }
                         }
-                        else {
+                        else if (message.type == MT_QUERY) {
+                            printf("qury req\n");
+                            for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
+                                UserStruct userStruct = userManager.users[slotIdx];
+                                if (!userStruct.deleted) {// found the correspongind connection
+                                    printf("user %d in session %d\n", userStruct.fd, userStruct.sessionId);
+                                }
+                            }
+
+                            printf("Session: ");
+                            for (int slotIdx=0; slotIdx<MAX_SESSIONS; slotIdx++) {
+                                if (!userManager.sessions[slotIdx].deleted) {
+                                    printf("%d ", userManager.sessions[slotIdx].sessionId);
+                                }
+                            }
+                            printf("\n");
+
+                        } else {
                             broadcast(i, nbytes, buf);
                         }
                     }
