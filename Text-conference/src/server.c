@@ -58,13 +58,49 @@ void storage_initCredentials() {
 
 // Not fully implemented, temporary
 void storage_loadCredentials() {
-
-    for(int i=0; i<10; i++) {
-        // storage.credentials[i].name
-        snprintf(storage.credentials[i].name, MAX_NAME, "%d", i);
-        snprintf(storage.credentials[i].password, MAX_NAME, "%d", i+i);
-        storage.credentials[i].emptySlot = false; // Mark as occupied
+    // Initialize all slots as empty first
+    for (int i = 0; i < 50; i++) {
+        storage.credentials[i].emptySlot = true;
     }
+
+    FILE *file = fopen("credentials.dat", "rb");
+    if (file == NULL) {
+        printf("No existing credentials file found - starting with empty storage\n");
+        return;
+    }
+
+    // Read the entire storage structure
+    size_t read = fread(&storage, sizeof(storage), 1, file);
+    fclose(file);
+
+    if (read != 1) {
+        printf("Error: Failed to read credentials from file\n");
+        // Keep the initialized empty storage
+        return;
+    }
+
+    printf("Credentials loaded successfully\n");
+}
+
+
+bool storage_saveCredentials() {
+    FILE *file = fopen("credentials.dat", "wb");
+    if (file == NULL) {
+        printf("Error: Could not open credentials file for writing\n");
+        return false;
+    }
+
+    // Write the entire storage structure
+    size_t written = fwrite(&storage, sizeof(storage), 1, file);
+    fclose(file);
+
+    if (written != 1) {
+        printf("Error: Failed to write credentials to file\n");
+        return false;
+    }
+
+    printf("Credentials saved successfully\n");
+    return true;
 }
 
 /**
@@ -270,6 +306,64 @@ logUserIn(char* name, char *password, int *out_error) {
     }
 
     return true;
+}
+
+bool regNewUser(char *name, char *password, int *out_error) {
+    if (name == NULL || password == NULL || out_error == NULL) {
+        printf("Invalid register input\n");
+        return false;
+    }
+
+    int emptyIndex = -1;
+    
+    // First check if user exists (only in non-empty slots)
+    for (int i = 0; i < 50; i++) {
+        if (!storage.credentials[i].emptySlot) {
+            if (strcmp(storage.credentials[i].name, name) == 0) {
+                *out_error = -1;  // User already exists
+                return false;
+            }
+        } else if (emptyIndex == -1) {
+            // Remember first empty slot
+            emptyIndex = i;
+        }
+    }
+
+    if (emptyIndex == -1) {
+        *out_error = -2;  // No empty slots available
+        return false;
+    }
+
+    // Register new user
+    storage.credentials[emptyIndex].emptySlot = false;
+    strncpy(storage.credentials[emptyIndex].name, name, MAX_NAME - 1);
+    storage.credentials[emptyIndex].name[MAX_NAME - 1] = '\0';
+    strncpy(storage.credentials[emptyIndex].password, password, MAX_NAME - 1);
+    storage.credentials[emptyIndex].password[MAX_NAME - 1] = '\0';
+
+    storage_saveCredentials();
+    
+    *out_error = 0;  // Success
+
+    return true;
+}
+
+void printAllCredentials() {
+    printf("\n=== Current Credentials ===\n");
+    int count = 0;
+    
+    for (int i = 0; i < 50; i++) {
+        if (!storage.credentials[i].emptySlot) {
+            printf("Slot %d: Username: '%s', Password: '%s'\n", 
+                i, 
+                storage.credentials[i].name, 
+                storage.credentials[i].password);
+            count++;
+        }
+    }
+    
+    printf("Total users: %d\n", count);
+    printf("========================\n\n");
 }
 
 /**
@@ -506,8 +600,10 @@ int main(int argc, char *argv[]) {
                                 user_deleteUserConn(fd);
                             }
                         } else if (message.type == MT_REGISTER) {
+                            int errorCode;
                             printf("You wanna register? with %s and %s \n", message.source, message.data);
-
+                            regNewUser((char*)message.source, (char*)message.data, &errorCode); //message.source here is special. Not applicable to other use
+                            printAllCredentials();
                             user_deleteUserConn(i);
 
                         } else if (message.type == MT_NEW_SESS) {
