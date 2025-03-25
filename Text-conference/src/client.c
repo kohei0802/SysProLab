@@ -256,10 +256,21 @@ void routine_stdin() {
     char **argv;
 
     enum Command command;
-    char cmd_line[MAX_DATA * 2];
+    char cmd_line[MAX_DATA];
     if (fgets(cmd_line, sizeof(cmd_line), stdin) == NULL) {
         return;
     }
+
+    // Check if input was too long (no newline found)
+    if (strchr(cmd_line, '\n') == NULL) {
+        // Clear the input buffer
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF);
+        printf("Input too long (max %d characters)\n", MAX_DATA - 1);
+        return;
+    }
+
+
     command = parse_command(cmd_line, &argc, &argv);
 
     Message message;
@@ -332,8 +343,8 @@ void routine_stdin() {
 
 void routine_sockfd() {
     Message message;
-    char buffer[1024];
-    ssize_t nbytes = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
+    char buffer[MAX_DATA];
+    ssize_t nbytes = recvMessage(sockfd, buffer, sizeof(buffer) - 1);
     if (nbytes < 0) {
         perror("recv error");
     } else if (nbytes == 0) {
@@ -395,7 +406,7 @@ int routine_login() {
     int argc;
     char **argv;
     char input[MAX_DATA * 2];
-    char reply[MAX_DATA];
+    char reply[MAX_DATA * 2];
     Message reply_msg;
     Message message;
     message.type = MT_LOGIN;
@@ -437,7 +448,7 @@ int routine_login() {
                     continue;
                 }
 
-                nbytes = recv(sockfd, reply, MAX_DATA, 0);
+                nbytes = recvMessage(sockfd, reply, MAX_DATA * 2);
                 deserialize(reply, &reply_msg);
 
                 switch (reply_msg.type)

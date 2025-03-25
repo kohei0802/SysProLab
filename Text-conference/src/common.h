@@ -1,9 +1,11 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <sys/types.h>
+
 #define MAX_PASSWORDLEN 256
 #define MAX_NAME 50
-#define MAX_DATA 100
+#define MAX_DATA 2000
 
 struct Credential {
     int clientid;
@@ -45,5 +47,8 @@ deserialize(char *instring, struct Message *outmessage) ;
 
 void 
 sendMessage(int sockfd, Message outgoingmsg);
+
+ssize_t 
+recvMessage(int sockfd, char *buf, size_t bufsize);
 
 #endif // COMMON_H
