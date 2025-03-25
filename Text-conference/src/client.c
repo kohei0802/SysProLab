@@ -338,11 +338,7 @@ void routine_stdin() {
         perror("system error (parse)\n");
         exit(1);
 
-    } else if (command == COM_REGISTER) {
-
-        printf("ok. Wanna register?\n");
-
-    } else if (command == COM_MESSAGE_PRIVATE) {
+    }  else if (command == COM_MESSAGE_PRIVATE) {
         printf("received private command\n");
     } else {
         printf("input error (no option)\n");
@@ -418,7 +414,6 @@ int routine_login() {
     char reply[MAX_DATA * 2];
     Message reply_msg;
     Message message;
-    message.type = MT_LOGIN;
     char* str;
 
     while( !thisClient.connected) {
@@ -430,13 +425,33 @@ int routine_login() {
             if (command == COM_TEXT) {
                 printf("You should log in first, with /login. If no account, register with /register\n");
                 cleanargs(argc, argv);
-                continue;
             }
             else if (command == COM_QUIT) {
                 printf("exiting....\n");
                 cleanargs(argc, argv);
                 exit(1); // currently relying on the server's detection
+            } else if (command == COM_REGISTER) {
+                if (argc == 5) {
+                    message.type = MT_REGISTER;
+                    strncpy((char *) message.source, argv[1], MAX_DATA); // This is ad-hoc special use. Don't use in other places
+                    strncpy((char *)message.data, argv[2], MAX_DATA);  
+                    sendMessage(sockfd, message);
+                    if (initsocket(argv[3], atoi((char *)argv[4])) == -1) {
+                        printf("Try another addr\n");
+                    } else {
+                        sendMessage(sockfd, message);
+                    }
+
+                }  else {
+                    printf("register <id> <password> <server-IP> <server-port>\n");
+                } 
+
+                cleanargs(argc, argv);
+
+                close(sockfd);
+
             } else if (command == COM_LOGIN) {
+                message.type = MT_LOGIN;
                 if (argc != 5) {
                     printf("Login with: /login <client ID> <password> <server-IP> <server-port>\n");
                     cleanargs(argc, argv);
@@ -451,6 +466,8 @@ int routine_login() {
                     cleanargs(argc, argv);
                     continue;
                 }
+
+                printf("connected\n");
                 
                 // from here, socket is connected
                 strcpy((char *) message.source, argv[1]);
@@ -458,10 +475,11 @@ int routine_login() {
                 str = serialize(message, NULL);
 
                 // free argc and things in argv and argv
-                cleanargs(argc, argv);
+                
 
                 ssize_t nbytes =  send(sockfd, str, strlen(str)*sizeof(char), 0);
 
+                cleanargs(argc, argv);
                 free(str);
 
                 if (nbytes < 0) {
@@ -488,11 +506,7 @@ int routine_login() {
                     close(sockfd);
                     break;
                 }
-            } else if (command == COM_REGISTER) {
-                printf("ok. wanna register?\n");
-                cleanargs(argc, argv);
-                continue;
-            }
+            } 
 
         }
     }

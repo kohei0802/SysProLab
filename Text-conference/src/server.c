@@ -504,8 +504,12 @@ int main(int argc, char *argv[]) {
                                 int fd = i;
                                 sendMessage(fd, message);
                                 user_deleteUserConn(fd);
-                                continue;
                             }
+                        } else if (message.type == MT_REGISTER) {
+                            printf("You wanna register? with %s and %s \n", message.source, message.data);
+
+                            user_deleteUserConn(i);
+
                         } else if (message.type == MT_NEW_SESS) {
                             printf("user new session in\n");
                             int emptyIdx = user_getOpenSlot(2);
@@ -538,8 +542,7 @@ int main(int argc, char *argv[]) {
                                 memset(userManager.users[idx].sessionId, 0, MAX_NAME_LEN);
                                 user_deleteSession(oldid);
                             }
-                        }
-                        else if (message.type == MT_QUERY) {
+                        } else if (message.type == MT_QUERY) {
                             printf("qury req\n");
                             for (int slotIdx=0; slotIdx<MAX_CLIENT; slotIdx++) {
                                 UserStruct userStruct = userManager.users[slotIdx];
@@ -559,7 +562,7 @@ int main(int argc, char *argv[]) {
                         } else {
                             broadcast(i, nbytes, buf);
                         }
-                    }
+                    } // END IF There're bytes 
                 } // END handle data from client
             } // END got new incoming connection
         } // END looping through file descriptors
