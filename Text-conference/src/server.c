@@ -32,6 +32,41 @@ fd_set read_fds;  // temp file descriptor list for select()
 int fdmax;        // maximum file descriptor number
 int listener;     // listening socket descriptor
 
+
+/**
+ * Storage
+ * 
+ */
+
+typedef struct userCredStruct {
+    char name[MAX_NAME];
+    char password[MAX_NAME];
+    bool emptySlot;
+} UserCredential;
+
+static struct StorageStruct {
+    UserCredential credentials[50];
+} storage;
+
+void storage_initCredentials() {
+    memset(storage.credentials, 0, sizeof(storage.credentials));  // Instead of 
+
+    for(int i=0; i<50; i++) {
+        storage.credentials[i].emptySlot = true;
+    }
+}
+
+// Not fully implemented, temporary
+void storage_loadCredentials() {
+
+    for(int i=0; i<10; i++) {
+        // storage.credentials[i].name
+        snprintf(storage.credentials[i].name, MAX_NAME, "%d", i);
+        snprintf(storage.credentials[i].password, MAX_NAME, "%d", i+i);
+        storage.credentials[i].emptySlot = false; // Mark as occupied
+    }
+}
+
 /**
  * User management
  */
@@ -206,6 +241,38 @@ void user_joinsession(int fd, const char* sessionId) {
 }
 
 /**
+ * try to log the user in, if the max users reached, return -2  ----> Don't think it's needed, cuz it's probably checked already in socket accept
+ * if the username doesn't exist, return -3
+ * if the username 
+ */
+bool 
+logUserIn(char* name, char *password, int *out_error) {
+    if (name == NULL || password == NULL || out_error == NULL) {
+        printf("Invalid credentials or error var\n");
+        return false;
+    }
+
+    // returns false if it's not a valid credential
+    bool found = false;
+    for (int i=0; i<50; i++) {
+        UserCredential credential = storage.credentials[i];
+        if (credential.emptySlot == false) {
+            if (strcmp(credential.name, name) == 0 && strcmp(credential.password, password) == 0) {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if (!found)  {
+        *out_error = -3;
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Address formatting
  */
 void *get_in_addr(struct sockaddr *sa)
@@ -277,6 +344,9 @@ int main(int argc, char *argv[]) {
     }
 
     user_inituserarr();
+
+    storage_initCredentials();
+    storage_loadCredentials();
   
     int newfd;        // newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // client address
@@ -410,20 +480,29 @@ int main(int argc, char *argv[]) {
                         printf("deserialized: %s\n", buf);
 
                         if (message.type == MT_LOGIN) { // Client implement: end conn if MT_LO_NAK replied
-                            printf("data %s\n", message.data);
 
+                            if (message.source == NULL || message.data == NULL)  {
+                                message.type = MT_LO_NAK;
+                                int fd = i;
+                                sendMessage(fd, message);
+                                user_deleteUserConn(fd);
+                                continue;
+                            }
+
+                            printf("%s attempted to login with %s\n", (char*)message.source, (char*)message.data);
+
+                            int errorCode = 0;
+                            bool isLoggedin = logUserIn((char*)message.source, (char*)message.data, &errorCode);
                             // check password 
-                            if (strcmp((char*)message.data, "0802") == 0) {
+                            if (isLoggedin) {
                                 message.type = MT_LO_ACK; // Client implement: allow joinsession if MT+LO_ACK replied
-
                                 int fd = i;
                                 sendMessage(fd, message);
                             } else {
-                                    printf("login failed\n");
+                                printf("login failed\n");
                                 message.type = MT_LO_NAK; // Client implement: end conn if MT_LO_NAK replied
                                 int fd = i;
                                 sendMessage(fd, message);
-                                    printf("in %d bye2!\n", fd);
                                 user_deleteUserConn(fd);
                                 continue;
                             }

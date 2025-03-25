@@ -31,6 +31,8 @@ enum Command {
     COM_TEXT, 
     COM_WRONG, // free() needed
     COM_ERROR, // no malloc() succeeded -> no free() needed in parse_command()
+    COM_REGISTER,
+    COM_MESSAGE_PRIVATE,
 };
 
 /**
@@ -209,10 +211,7 @@ enum Command parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
     argv[*argc] = NULL;  // NULL terminate the array
 
     if (strcmp(argv[0], "/login") == 0) {
-        if (*argc == 5) {
-            return COM_LOGIN;
-        }
-        printf("Usage: /login <client ID> <password> <server-IP> <server-port>\n");
+        return COM_LOGIN;
     } else if (strcmp(argv[0], "/logout") == 0) {
         printf("Command: LOGOUT\n");
         return COM_LOGOUT;
@@ -235,6 +234,10 @@ enum Command parse_command(const char *cmd_line, int *argc, char ***argv_ptr) {
     } else if (strcmp(argv[0], "/quit") == 0) {
         printf("Command: QUIT\n");
         return COM_QUIT;
+    } else if (strcmp(argv[0], "/register") == 0) {
+        return COM_REGISTER;
+    } else if (strcmp(argv[0], "/private") == 0){
+        return COM_MESSAGE_PRIVATE;
     } else {
         //text
         return COM_TEXT;
@@ -270,15 +273,14 @@ void routine_stdin() {
         return;
     }
 
-
     command = parse_command(cmd_line, &argc, &argv);
 
     Message message;
+    strncpy((char *) message.source, (char *)clientId, MAX_NAME);
 
     if (command == COM_WRONG) {
         cleanargs(argc, argv);
     } else if(command == COM_LOGIN) {
-
         printf("/login invalid (alr executed)\n");
         cleanargs(argc, argv);
     } else if(command == COM_LOGOUT) {
@@ -316,7 +318,6 @@ void routine_stdin() {
         char *buf;
         int size;
         message.type = MT_MESSAGE;
-        memcpy((char *) message.source, "123", 4);
         strncpy((char *) message.data, cmd_line, MAX_DATA - 1);
         message.data[MAX_DATA-1] = '\0';
         
@@ -336,6 +337,13 @@ void routine_stdin() {
     }else if(command == COM_ERROR) {
         perror("system error (parse)\n");
         exit(1);
+
+    } else if (command == COM_REGISTER) {
+
+        printf("received register command\n");
+
+    } else if (command == COM_MESSAGE_PRIVATE) {
+        printf("received private command\n");
     } else {
         printf("input error (no option)\n");
     }
@@ -392,6 +400,7 @@ void routine_main() {
         }
 
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
+
             routine_stdin();
         }
 
@@ -415,9 +424,17 @@ int routine_login() {
     while( !thisClient.connected) {
 
         if (fgets(input, sizeof(input), stdin) != NULL) {
-            if (parse_command(input, &argc, &argv) != COM_ERROR) {
+            enum Command command;
+            command = parse_command(input, &argc, &argv);
+            if (command != COM_ERROR) {
 
-                if (argc != 5 || strcmp(argv[0], "/login") != 0 ) {
+                if (command == COM_QUIT) {
+                    printf("exiting....\n");
+                    cleanargs(argc, argv);
+                    exit(1); // currently relying on the server's detection
+                }
+
+                if (argc != 5 || command != COM_LOGIN ) {
                     printf("Login with: /login <client ID> <password> <server-IP> <server-port>\n");
                     cleanargs(argc, argv);
                     continue;
@@ -442,9 +459,11 @@ int routine_login() {
                 cleanargs(argc, argv);
 
                 ssize_t nbytes =  send(sockfd, str, strlen(str)*sizeof(char), 0);
+
+                free(str);
+
                 if (nbytes < 0) {
                     printf("send failed");
-                    free(str);
                     continue;
                 }
 
@@ -455,6 +474,7 @@ int routine_login() {
                 {
                 case MT_LO_ACK:
                     thisClient.connected = true;
+                    strncpy((char *) clientId, (char *) message.source, MAX_NAME); // remember the latest user name for this client
                     printf("logged in & connected \n");
                     break;
                 case MT_LO_NAK:
@@ -467,9 +487,9 @@ int routine_login() {
                     break;
                 }
 
-                free(str);
+                
 
-            }
+            } 
 
         }
     }

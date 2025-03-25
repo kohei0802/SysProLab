@@ -33,7 +33,9 @@ enum MessageType {
     MT_MESSAGE,
     MT_QUERY,
     MT_QU_ACK,
-    MT_TEST
+    MT_TEST, 
+    MT_REGISTER,
+    MT_MESSAGE_PRIVATE,
 };
 
 char * 
