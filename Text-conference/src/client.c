@@ -339,7 +339,36 @@ void routine_stdin() {
         exit(1);
 
     }  else if (command == COM_MESSAGE_PRIVATE) {
-        printf("received private command\n");
+        message.type = MT_MESSAGE_PRIVATE;
+        printf("send private thing? ok\n");
+        if (argc == 2) {
+            char receiverId[MAX_NAME];
+            strncpy(receiverId, argv[1], MAX_NAME);
+            receiverId[MAX_NAME-1] = '\0';
+
+            printf("Enter message for %s: ", receiverId);
+
+            char input[2000];
+
+            if (fgets(input, sizeof(input), stdin) == NULL) {
+                printf("somehow returned\n");
+                return;
+            }
+
+            printf("received input\n");
+
+            snprintf((char *)message.data, MAX_DATA, "%s %s said privately ... %s", receiverId, (char *) clientId , input);
+            message.data[MAX_DATA-1] = '\0';
+            sendMessage(sockfd, message);
+
+            printf("pri sent\n");
+            
+        } else {
+            printf("Usage: /private <username>\n");
+        }
+
+        cleanargs(argc, argv);
+        
     } else {
         printf("input error (no option)\n");
     }

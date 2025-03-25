@@ -113,6 +113,7 @@ typedef struct Session {
 } Session ;
 
 typedef struct userStruct {
+    char name[MAX_NAME];
     char sessionId[MAX_NAME_LEN]; // conference id
     bool deleted; // indicate if the userStruct is used
     int fd; // socket fd. Client side initiates "fin". Server doesn't
@@ -305,6 +306,8 @@ logUserIn(char* name, char *password, int *out_error) {
         return false;
     }
 
+
+
     return true;
 }
 
@@ -425,6 +428,30 @@ void clientsocketconfig(int newfd) {
     if (setsockopt(newfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl)) < 0) {
         perror("setsockopt(TCP_KEEPINTVL)");
     }
+}
+
+void splitFirstWord(const char* input, char* firstWord, char* restOfString, int maxFirstLen, int maxRestLen) {
+    int i = 0;
+    int j = 0;
+
+    // Skip leading spaces
+    while (input[i] == ' ') i++;
+
+    // Copy first word
+    while (input[i] != '\0' && input[i] != ' ' && j < maxFirstLen - 1) {
+        firstWord[j++] = input[i++];
+    }
+    firstWord[j] = '\0';
+
+    // Skip spaces between first word and rest
+    while (input[i] == ' ') i++;
+
+    // Copy rest of string
+    j = 0;
+    while (input[i] != '\0' && j < maxRestLen - 1) {
+        restOfString[j++] = input[i++];
+    }
+    restOfString[j] = '\0';
 }
 
 /**
@@ -591,6 +618,12 @@ int main(int argc, char *argv[]) {
                             if (isLoggedin) {
                                 message.type = MT_LO_ACK; // Client implement: allow joinsession if MT+LO_ACK replied
                                 int fd = i;
+                                for (int i=0; i<MAX_CLIENT; i++) {
+                                    if (!userManager.users[i].deleted && userManager.users[i].fd == fd) { // found the corresponding user
+                                        strncpy((char *)userManager.users[i].name, (char *)message.source, MAX_NAME);
+                                        break;
+                                    }
+                                }
                                 sendMessage(fd, message);
                             } else {
                                 printf("login failed\n");
@@ -654,6 +687,24 @@ int main(int argc, char *argv[]) {
                                 }
                             }
                             printf("\n");
+
+                        } else if (message.type == MT_MESSAGE_PRIVATE) {
+                            message.type = MT_MESSAGE;
+                            char username[MAX_NAME];
+                            char data[MAX_DATA];
+                            splitFirstWord((char *) message.data, (char *) username, data, MAX_NAME, MAX_DATA);
+                            strncpy((char *) message.data, data, MAX_DATA);
+
+                            printf("pri %s %s\n", username, data);
+                            
+                            for (int i=0; i<MAX_CLIENT; i++) {
+                                if (!userManager.users[i].deleted &&  strcmp(userManager.users[i].name, username) == 0) {
+                                    printf("why?\n");
+                                    sendMessage(userManager.users[i].fd, message);
+                                }
+                            }
+
+                            printf("pri ending\n");
 
                         } else {
                             broadcast(i, nbytes, buf);

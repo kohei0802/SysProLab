@@ -5,7 +5,7 @@
 
 #define MAX_PASSWORDLEN 256
 #define MAX_NAME 50
-#define MAX_DATA 2000
+#define MAX_DATA 4000
 
 struct Credential {
     int clientid;
