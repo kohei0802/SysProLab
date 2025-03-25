@@ -340,7 +340,7 @@ void routine_stdin() {
 
     } else if (command == COM_REGISTER) {
 
-        printf("received register command\n");
+        printf("ok. Wanna register?\n");
 
     } else if (command == COM_MESSAGE_PRIVATE) {
         printf("received private command\n");
@@ -426,15 +426,18 @@ int routine_login() {
         if (fgets(input, sizeof(input), stdin) != NULL) {
             enum Command command;
             command = parse_command(input, &argc, &argv);
-            if (command != COM_ERROR) {
 
-                if (command == COM_QUIT) {
-                    printf("exiting....\n");
-                    cleanargs(argc, argv);
-                    exit(1); // currently relying on the server's detection
-                }
-
-                if (argc != 5 || command != COM_LOGIN ) {
+            if (command == COM_TEXT) {
+                printf("You should log in first, with /login. If no account, register with /register\n");
+                cleanargs(argc, argv);
+                continue;
+            }
+            else if (command == COM_QUIT) {
+                printf("exiting....\n");
+                cleanargs(argc, argv);
+                exit(1); // currently relying on the server's detection
+            } else if (command == COM_LOGIN) {
+                if (argc != 5) {
                     printf("Login with: /login <client ID> <password> <server-IP> <server-port>\n");
                     cleanargs(argc, argv);
                     continue;
@@ -448,7 +451,6 @@ int routine_login() {
                     cleanargs(argc, argv);
                     continue;
                 }
-
                 
                 // from here, socket is connected
                 strcpy((char *) message.source, argv[1]);
@@ -486,10 +488,11 @@ int routine_login() {
                     close(sockfd);
                     break;
                 }
-
-                
-
-            } 
+            } else if (command == COM_REGISTER) {
+                printf("ok. wanna register?\n");
+                cleanargs(argc, argv);
+                continue;
+            }
 
         }
     }
