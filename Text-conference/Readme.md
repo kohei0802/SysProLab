@@ -36,12 +36,12 @@ Same as online meeting programs like "Skype" and "Zoom", but with only "text"
 
 * handling weird and wrong input from client.
 
-* sessionID is "int" instead of "char*"
-
 * "list" command to query a list of sessions and other online clients
-    * sessions means the conference room to chat in
+* sessions means the conference room to chat in
 
-* Curertly, no storage of user credential. Only need pswd "0802"
+Additional features
+* storage of user credential. Register and Login. 
+* Send private message to particular user
 
 
 
